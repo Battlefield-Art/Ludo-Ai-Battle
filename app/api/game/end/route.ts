@@ -3,6 +3,9 @@ import { redis } from '@/lib/redis';
 import { GameState } from '@/types/game';
 import { z } from 'zod';
 import { updateAllStats } from '@/lib/stats';
+import { completeReplay } from '@/lib/replay';
+import { recordGameCompletion } from '@/lib/analytics';
+import { getWebSocketManager } from '@/lib/websocket';
 
 const endSchema = z.object({
   gameId: z.string(),
@@ -29,13 +32,42 @@ export async function POST(req: NextRequest) {
     }
 
     // Store in history
-    await redis.set(`history:${gameId}`, state);
-    
+    await redis.set(`history:${gameId}`, state, { ex: 31536000 }); // 1 year TTL
+
+    // Complete replay
+    if (state.completedAt) {
+      await completeReplay(gameId, state.completedAt);
+    }
+
     // Trigger statistics update
     await updateAllStats(state);
 
+    // Record analytics
+    if (state.completedAt) {
+      const duration = state.completedAt - state.createdAt;
+      await recordGameCompletion(state, duration);
+    }
+
     // Remove from active list
     await redis.zrem('games:active:list', gameId);
+
+    // Emit WebSocket events
+    try {
+      const wsManager = getWebSocketManager();
+      await wsManager.broadcastToGame(gameId, {
+        type: 'GAME_COMPLETED',
+        gameId,
+        timestamp: new Date().toISOString(),
+        data: { finalRanking: state.finalRanking, state },
+      });
+      await wsManager.broadcastToLeaderboard({
+        type: 'LEADERBOARD_UPDATED',
+        timestamp: new Date().toISOString(),
+        data: { reason: 'game_completed', gameId },
+      });
+    } catch {
+      // ignore websocket errors
+    }
 
     return NextResponse.json({
       success: true,

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { redis } from '@/lib/redis';
 import { GameState } from '@/types/game';
 import { updateAllStats } from '@/lib/stats';
+import { getWebSocketManager } from '@/lib/websocket';
 import { z } from 'zod';
 
 const updateSchema = z.object({
@@ -31,6 +32,18 @@ export async function POST(req: NextRequest) {
     }
 
     await updateAllStats(state);
+
+    // Emit leaderboard update
+    try {
+      const wsManager = getWebSocketManager();
+      await wsManager.broadcastToLeaderboard({
+        type: 'LEADERBOARD_UPDATED',
+        timestamp: new Date().toISOString(),
+        data: { reason: 'manual_update', gameId },
+      });
+    } catch {
+      // ignore websocket errors
+    }
 
     return NextResponse.json({
       success: true,

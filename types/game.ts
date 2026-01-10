@@ -1,5 +1,5 @@
 export type PlayerColor = 'red' | 'blue' | 'yellow' | 'green';
-export type GameStatus = 'waiting' | 'active' | 'completed';
+export type GameStatus = 'waiting' | 'active' | 'paused' | 'completed' | 'cancelled';
 
 export interface Piece {
   pieceId: number;

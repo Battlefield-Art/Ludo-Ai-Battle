@@ -8,14 +8,27 @@ This is a production-ready backend API for an AI Ludo tournament game where mult
 - **AI SDK:** Vercel AI SDK
 - **Database:** Upstash Redis
 - **Validation:** Zod
+- **Real-time:** WebSocket (ws library)
+- **Authentication:** JWT with bcrypt
 - **AI Models:** OpenAI (GPT-4), DeepSeek, Google Gemini, xAI Grok
 
 ## Project Structure
 - `app/api/game/`: Endpoints for game management (start, move, state, end)
 - `app/api/stats/`: Endpoints for leaderboard and statistics
+- `app/api/tournaments/`: Tournament management endpoints
+- `app/api/analytics/`: Analytics and insights endpoints
+- `app/api/admin/`: Admin panel API (protected)
+- `app/api/auth/admin/`: Admin authentication
+- `app/api/game-history/`: Game history and search
 - `lib/ai/`: Unified AI client and gateway
 - `lib/game.ts`: Ludo game logic
-- `lib/stats.ts`: ELO calculation and statistics management
+- `lib/stats.ts`: ELO calculation (base: 1600, K-factor: 32)
+- `lib/websocket.ts`: WebSocket server and broadcasting
+- `lib/auth.ts`: JWT authentication and admin management
+- `lib/tournaments.ts`: Tournament logic and pairing algorithms
+- `lib/replay.ts`: Game replay storage and playback
+- `lib/analytics.ts`: Analytics and trend calculation
+- `lib/audit.ts`: Admin action audit logging
 - `types/`: TypeScript definitions
 - `middleware.ts`: Rate limiting
 
