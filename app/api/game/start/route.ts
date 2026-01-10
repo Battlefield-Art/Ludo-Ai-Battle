@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { redis } from '@/lib/redis';
 import { createInitialState } from '@/lib/game';
+import { initReplay } from '@/lib/replay';
+import { getWebSocketManager } from '@/lib/websocket';
 import { v4 as uuidv4 } from 'uuid';
 import { z } from 'zod';
 
@@ -18,6 +20,23 @@ export async function POST(req: NextRequest) {
     
     await redis.set(`games:${gameId}`, initialState, { ex: 86400 }); // 24h TTL
     await redis.zadd('games:active:list', { score: Date.now(), member: gameId });
+
+    // Initialize replay
+    await initReplay(initialState);
+
+    // Emit WebSocket event
+    try {
+      const wsManager = getWebSocketManager();
+      await wsManager.broadcastToGame(gameId, {
+        type: 'GAME_STARTED',
+        gameId,
+        timestamp: new Date().toISOString(),
+        data: { state: initialState },
+      });
+    } catch (wsError) {
+      // WebSocket might not be initialized, that's OK
+      console.log('WebSocket not available:', wsError);
+    }
 
     return NextResponse.json({
       success: true,

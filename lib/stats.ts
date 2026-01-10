@@ -1,8 +1,8 @@
 import { redis } from '@/lib/redis';
-import { GameState, ModelStats } from '@/types/game';
+import { GameState, ModelStats, PlayerColor } from '@/types/game';
 
-const DEFAULT_ELO = 1200;
-const K_FACTOR = 32;
+export const DEFAULT_ELO = 1600;
+export const K_FACTOR = 32;
 
 export async function getModelStats(modelName: string): Promise<ModelStats> {
   const stats = await redis.get<ModelStats>(`stats:${modelName}`);
@@ -21,59 +21,97 @@ export async function getModelStats(modelName: string): Promise<ModelStats> {
   };
 }
 
-export function calculateNewElo(currentElo: number, opponentAvgElo: number, actualScore: number): number {
-  const expectedScore = 1 / (1 + Math.pow(10, (opponentAvgElo - currentElo) / 400));
-  return Math.round(currentElo + K_FACTOR * (actualScore - expectedScore));
+function expectedScore(rating: number, opponent: number): number {
+  return 1 / (1 + Math.pow(10, (opponent - rating) / 400));
+}
+
+export function calculateEloChange(rating: number, opponent: number, result: number): number {
+  const expected = expectedScore(rating, opponent);
+  return K_FACTOR * (result - expected);
+}
+
+export function updateEloRatings(
+  players: Array<{ modelName: string; rating: number }>,
+  ranking: string[],
+  isDraw: boolean
+): Map<string, number> {
+  const n = players.length;
+  const rankIndex = new Map(ranking.map((m, i) => [m, i]));
+  const perOpponentK = K_FACTOR / Math.max(1, n - 1);
+
+  const newRatings = new Map<string, number>();
+
+  for (const player of players) {
+    let delta = 0;
+    for (const opponent of players) {
+      if (opponent.modelName === player.modelName) continue;
+
+      let result = 0.5;
+      if (!isDraw) {
+        const a = rankIndex.get(player.modelName);
+        const b = rankIndex.get(opponent.modelName);
+        if (a === undefined || b === undefined) {
+          result = 0.5;
+        } else if (a < b) {
+          result = 1;
+        } else if (a > b) {
+          result = 0;
+        } else {
+          result = 0.5;
+        }
+      }
+
+      const expected = expectedScore(player.rating, opponent.rating);
+      delta += perOpponentK * (result - expected);
+    }
+
+    newRatings.set(player.modelName, Math.round(player.rating + delta));
+  }
+
+  return newRatings;
 }
 
 export async function updateAllStats(state: GameState) {
-  if (!state.finalRanking) return;
+  if (!state.finalRanking || state.finalRanking.length === 0) return;
 
   const playerModels = state.players.reduce((acc, p) => {
     acc[p.color] = p.model;
     return acc;
-  }, {} as Record<string, string>);
+  }, {} as Record<PlayerColor, string>);
 
-  const models = state.players.map(p => p.model);
-  const currentStats = await Promise.all(models.map(m => getModelStats(m)));
-  const statsMap = new Map(currentStats.map(s => [s.modelName, s]));
+  const models = state.players.map((p) => p.model);
+  const currentStats = await Promise.all(models.map((m) => getModelStats(m)));
+  const statsMap = new Map(currentStats.map((s) => [s.modelName, s]));
 
-  // Calculate captures
   const capturesMap = new Map<string, number>();
-  state.moveHistory.forEach(move => {
+  state.moveHistory.forEach((move) => {
     if (move.action === 'capture') {
       const model = playerModels[move.playerColor];
       capturesMap.set(model, (capturesMap.get(model) || 0) + 1);
     }
   });
 
-  // Calculate ELO changes
-  // For Ludo (4 players), we can treat it as multiple 1v1 matchups
-  // Winner gets 1 point, 2nd gets 0.7, 3rd gets 0.3, 4th gets 0
-  const scores = [1, 0.7, 0.3, 0];
-  const ranking = state.finalRanking;
+  const rankingModels = state.finalRanking.map((color) => playerModels[color]);
+  const playersForElo = currentStats.map((s) => ({ modelName: s.modelName, rating: s.elo }));
+  const newRatings = updateEloRatings(playersForElo, rankingModels, false);
 
-  for (let i = 0; i < ranking.length; i++) {
-    const color = ranking[i];
-    const modelName = playerModels[color];
+  for (const modelName of models) {
     const modelStats = statsMap.get(modelName)!;
-    const score = scores[i];
 
-    // Average ELO of opponents
-    const otherModels = state.players.filter(p => p.color !== color).map(p => p.model);
-    const avgOpponentElo = otherModels.reduce((sum, m) => sum + (statsMap.get(m)?.elo || DEFAULT_ELO), 0) / 3;
-
-    modelStats.elo = calculateNewElo(modelStats.elo, avgOpponentElo, score);
+    modelStats.elo = newRatings.get(modelName) ?? modelStats.elo;
     modelStats.gamesPlayed += 1;
-    if (i === 0) modelStats.wins += 1;
+
+    const place = rankingModels.indexOf(modelName);
+    if (place === 0) modelStats.wins += 1;
+    else if (place === -1) modelStats.draws += 1;
     else modelStats.losses += 1;
 
     modelStats.totalCaptures += capturesMap.get(modelName) || 0;
-    modelStats.winRate = (modelStats.wins / modelStats.gamesPlayed) * 100;
-    
-    // Update average game length
+    modelStats.winRate = modelStats.gamesPlayed > 0 ? (modelStats.wins / modelStats.gamesPlayed) * 100 : 0;
+
     const gameLength = state.moveHistory.length;
-    modelStats.avgGameLength = (modelStats.avgGameLength * (modelStats.gamesPlayed - 1) + gameLength) / modelStats.gamesPlayed;
+    modelStats.avgGameLength =
+      (modelStats.avgGameLength * (modelStats.gamesPlayed - 1) + gameLength) / modelStats.gamesPlayed;
 
     await redis.set(`stats:${modelName}`, modelStats);
     await redis.zadd('leaderboard', { score: modelStats.elo, member: modelName });
