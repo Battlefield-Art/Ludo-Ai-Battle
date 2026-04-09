@@ -6,7 +6,13 @@ export type RealtimeEventType =
   | 'LEADERBOARD_UPDATED'
   | 'PLAYER_JOINED'
   | 'PLAYER_LEFT'
-  | 'TOURNAMENT_UPDATED';
+  | 'TOURNAMENT_UPDATED'
+  | 'TOURNAMENT_STARTED'
+  | 'TOURNAMENT_PAUSED'
+  | 'TOURNAMENT_RESUMED'
+  | 'TOURNAMENT_ENDED'
+  | 'MATCH_STARTED'
+  | 'ROUND_COMPLETED';
 
 export type RealtimeChannel =
   | `game:${string}`
@@ -17,6 +23,8 @@ export interface RealtimeMessage<T = any> {
   type: RealtimeEventType;
   gameId?: string;
   tournamentId?: string;
+  matchId?: string;
+  roundNumber?: number;
   timestamp: string; // ISO8601
   data: T;
 }

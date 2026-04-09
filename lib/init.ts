@@ -1,5 +1,5 @@
-import { initWebSocketServer } from '@/lib/websocket';
 import { ensureDefaultAdmin } from '@/lib/auth';
+import { getSSEManager } from '@/lib/sse';
 
 let initialized = false;
 
@@ -8,13 +8,13 @@ export async function initialize() {
   initialized = true;
 
   try {
-    // Initialize WebSocket server
-    console.log('Initializing WebSocket server...');
-    await initWebSocketServer();
-    console.log('WebSocket server initialized successfully');
+    // Initialize SSE manager
+    console.log('Initializing SSE manager...');
+    await getSSEManager().initialize();
+    console.log('SSE manager initialized successfully');
   } catch (error) {
-    console.warn('WebSocket server failed to initialize:', error);
-    // Continue without WebSocket - it's optional
+    console.warn('SSE manager failed to initialize:', error);
+    // Continue without SSE - it's optional
   }
 
   try {

@@ -3,7 +3,11 @@ import bcrypt from 'bcryptjs';
 import { redis } from '@/lib/redis';
 import { Admin, AdminSession } from '@/types/admin';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'default-secret-change-in-production';
+if (!process.env.JWT_SECRET) {
+  throw new Error('JWT_SECRET environment variable is required in production');
+}
+
+const JWT_SECRET = process.env.JWT_SECRET;
 const JWT_EXPIRES_IN = '24h';
 
 export async function hashPassword(password: string): Promise<string> {
@@ -70,8 +74,15 @@ export async function updateAdminLastLogin(username: string): Promise<void> {
 export async function ensureDefaultAdmin() {
   const admins = await redis.smembers('admins:list');
   if (!admins || admins.length === 0) {
-    // Create default admin: username=admin, password=admin123
-    await createAdmin('admin', 'admin123', 'superadmin');
-    console.log('Default admin created: username=admin, password=admin123');
+    // Only create default admin if ADMIN_PASSWORD is set
+    const adminPassword = process.env.ADMIN_PASSWORD;
+    if (!adminPassword) {
+      console.warn('ADMIN_PASSWORD not set. Skipping default admin creation.');
+      return;
+    }
+
+    // Create default admin: username=admin, password from env
+    await createAdmin('admin', adminPassword, 'superadmin');
+    console.log('Default admin created: username=admin');
   }
 }

@@ -51,14 +51,14 @@ export async function getAuditLogs(
     const startScore = filters.startTime || 0;
     const endScore = filters.endTime || Date.now();
     
-    const logIds = await redis.zrangebyscore('audit:logs:sorted', startScore, endScore);
-    
+    const logIds = await redis.zrangebyscore('audit:logs:sorted', startScore, endScore) as string[];
+
     // Fetch log details
-    const logPromises = logIds.map((id) => redis.get<AuditLog>(`audit:log:${id}`));
+    const logPromises = logIds.map((id: string) => redis.get<AuditLog>(`audit:log:${id}`));
     const allLogs = (await Promise.all(logPromises)).filter((log): log is AuditLog => log !== null);
-    
+
     // Apply additional filters
-    logs = allLogs.filter((log) => {
+    logs = allLogs.filter((log: AuditLog) => {
       if (filters.adminId && log.adminId !== filters.adminId) return false;
       if (filters.resource && log.resource !== filters.resource) return false;
       return true;
