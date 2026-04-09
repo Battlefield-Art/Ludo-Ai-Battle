@@ -4,7 +4,7 @@ import { ModelStats } from '@/types/game';
 
 export async function GET(req: NextRequest) {
   try {
-    const leaderboard = await redis.zrevrange('leaderboard', 0, -1, { withScores: true });
+    const leaderboard = await redis.zrevrange('leaderboard', 0, -1) as (string | number)[];
     
     const stats: ModelStats[] = [];
     // leaderboard is an array of alternating members and scores

@@ -4,6 +4,7 @@ import { requireAdmin } from '@/lib/adminMiddleware';
 import { redis } from '@/lib/redis';
 import { GameState } from '@/types/game';
 import { logAdminAction } from '@/lib/audit';
+import { queueGameMove } from '@/lib/queue';
 
 export async function POST(req: NextRequest, { params }: { params: { gameId: string } }) {
   try {
@@ -15,6 +16,9 @@ export async function POST(req: NextRequest, { params }: { params: { gameId: str
 
     state.status = 'active';
     await redis.set(`games:${params.gameId}`, state, { ex: 86400 });
+
+    // Re-queue the game to continue auto-play
+    await queueGameMove(params.gameId, 1000);
 
     await logAdminAction(admin!.adminId, admin!.username, 'RESUME_GAME', 'game', params.gameId, {}, req.ip || undefined);
 

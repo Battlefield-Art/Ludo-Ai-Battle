@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { ok, fail, handleApiError } from '@/lib/api';
-import { getTournament, updateTournament, generateRoundRobinMatches, generateKnockoutMatches, generateBestOfNMatches } from '@/lib/tournaments';
+import { getTournament } from '@/lib/tournaments';
+import { startTournament } from '@/lib/tournamentManager';
 
 export async function POST(req: NextRequest, { params }: { params: { tournamentId: string } }) {
   try {
@@ -11,32 +12,11 @@ export async function POST(req: NextRequest, { params }: { params: { tournamentI
       return fail('CONFLICT', 'Tournament already started', 409);
     }
 
-    // Generate matches based on format
-    switch (tournament.format) {
-      case 'round-robin':
-        tournament.rounds = generateRoundRobinMatches(tournament.participants);
-        break;
-      case 'knockout':
-        tournament.rounds = generateKnockoutMatches(
-          tournament.participants,
-          tournament.settings.knockoutType
-        );
-        break;
-      case 'best-of-n':
-        tournament.rounds = generateBestOfNMatches(
-          tournament.participants,
-          tournament.settings.bestOfN
-        );
-        break;
-    }
+    // Start tournament and automatically create and queue games
+    await startTournament(params.tournamentId);
 
-    tournament.status = 'active';
-    tournament.startedAt = Date.now();
-    tournament.currentRound = 1;
-
-    await updateTournament(tournament);
-
-    return ok({ tournament });
+    const updated = await getTournament(params.tournamentId);
+    return ok({ tournament: updated });
   } catch (error) {
     return handleApiError(error);
   }

@@ -47,13 +47,13 @@ export function getValidMoves(gameState: GameState, diceRoll: number): any[] {
     } else {
       const newPos = piece.position + diceRoll;
       if (newPos <= 52) {
-        // Check for capture
+        // Check for potential capture
         const boardPos = getBoardPosition(currentPlayer.color, newPos);
-        const opponentPiece = findOpponentPieceAt(gameState, boardPos, currentPlayer.color);
-        
+        const opponentPieces = findOpponentPiecesAt(gameState, boardPos, currentPlayer.color);
+
         moves.push({
           pieceId: piece.pieceId,
-          action: (newPos < 52 && opponentPiece) ? 'capture' : 'move',
+          action: (newPos < 52 && opponentPieces.length > 0) ? 'capture' : 'move',
           targetPosition: newPos,
         });
       }
@@ -68,12 +68,14 @@ export function getBoardPosition(color: PlayerColor, distance: number): number {
   return (HOME_START[color] + distance) % BOARD_SIZE;
 }
 
-function findOpponentPieceAt(gameState: GameState, boardPosition: number, currentColor: PlayerColor): { playerIndex: number, pieceId: number } | null {
-  if (boardPosition === -1) return null;
-  
+function findOpponentPiecesAt(gameState: GameState, boardPosition: number, currentColor: PlayerColor): { playerIndex: number, pieceId: number }[] {
+  if (boardPosition === -1) return [];
+
   // Safe squares in Ludo: 0, 8, 13, 21, 26, 34, 39, 47 (relative to Red's start)
   const safeSquares = [0, 8, 13, 21, 26, 34, 39, 47];
-  if (safeSquares.includes(boardPosition)) return null;
+  if (safeSquares.includes(boardPosition)) return [];
+
+  const opponentPieces: { playerIndex: number, pieceId: number }[] = [];
 
   for (let i = 0; i < gameState.players.length; i++) {
     const player = gameState.players[i];
@@ -81,12 +83,12 @@ function findOpponentPieceAt(gameState: GameState, boardPosition: number, curren
     for (const piece of player.piecesState) {
       if (piece.position >= 0 && piece.position < 52) {
         if (getBoardPosition(player.color, piece.position) === boardPosition) {
-          return { playerIndex: i, pieceId: piece.pieceId };
+          opponentPieces.push({ playerIndex: i, pieceId: piece.pieceId });
         }
       }
     }
   }
-  return null;
+  return opponentPieces;
 }
 
 export function applyMove(gameState: GameState, move: AIResponse, diceRoll: number): GameState {
@@ -102,14 +104,17 @@ export function applyMove(gameState: GameState, move: AIResponse, diceRoll: numb
     piece.position = 0;
   } else {
     piece.position = toPosition;
-    
-    if (move.action === 'capture' && toPosition < 52) {
+
+    // Automatic capture - check all pieces at landing position
+    if (toPosition < 52) {
       const boardPos = getBoardPosition(player.color, toPosition);
-      const opponent = findOpponentPieceAt(newState, boardPos, player.color);
-      if (opponent) {
-        newState.players[opponent.playerIndex].piecesState[opponent.pieceId].position = -1;
-        newState.players[opponent.playerIndex].piecesState[opponent.pieceId].captured = true;
-      }
+      const opponentPieces = findOpponentPiecesAt(newState, boardPos, player.color);
+
+      // Capture all opponent pieces on the square
+      opponentPieces.forEach(({ playerIndex, pieceId }) => {
+        newState.players[playerIndex].piecesState[pieceId].position = -1;
+        newState.players[playerIndex].piecesState[pieceId].captured = true;
+      });
     }
   }
 
@@ -131,7 +136,7 @@ export function applyMove(gameState: GameState, move: AIResponse, diceRoll: numb
     if (!newState.finalRanking.includes(player.color)) {
       newState.finalRanking.push(player.color);
     }
-    
+
     // Check if game is over
     const finishedPlayers = newState.players.filter(p => p.piecesState.every(ps => ps.position === 52)).length;
     if (finishedPlayers >= 3) {
@@ -148,7 +153,7 @@ export function applyMove(gameState: GameState, move: AIResponse, diceRoll: numb
   // Next player turn
   // If roll is 6, same player goes again, unless they just finished all pieces
   const shouldGetAnotherTurn = diceRoll === 6 && !allFinished;
-  
+
   if (!shouldGetAnotherTurn) {
       newState.currentPlayerIndex = (newState.currentPlayerIndex + 1) % 4;
       // Skip players who have finished

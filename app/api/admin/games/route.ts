@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
     let gameIds: string[] = [];
 
     if (status === 'active' || status === 'all') {
-      const activeIds = await redis.zrange('games:active:list', 0, -1);
+      const activeIds = await redis.zrange('games:active:list', 0, -1) as string[];
       gameIds.push(...activeIds);
     }
 
