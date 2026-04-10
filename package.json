@@ -12,6 +12,8 @@
   "dependencies": {
     "@ai-sdk/google": "^0.0.16",
     "@ai-sdk/openai": "^0.0.14",
+    "@mastra/core": "^1.24.1",
+    "@mastra/openai": "^1.0.1-alpha.48",
     "@upstash/redis": "^1.31.1",
     "ai": "^3.1.12",
     "bcryptjs": "^2.4.3",
