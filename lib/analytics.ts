@@ -90,8 +90,10 @@ export async function recordGameCompletion(
 }
 
 export async function getAnalyticsInsights(): Promise<AnalyticsInsights> {
-  // Get all model stats
-  const modelNames = ['openai', 'deepseek', 'google', 'xai'];
+  // Get all model names from leaderboard
+  const leaderboard = await redis.zrange('leaderboard', 0, -1) as string[];
+  const modelNames = leaderboard;
+
   const allStats = await Promise.all(modelNames.map((m) => getModelStats(m)));
 
   // Sort by ELO
@@ -162,7 +164,9 @@ export async function getAnalyticsInsights(): Promise<AnalyticsInsights> {
 }
 
 export async function getRatingDistribution(): Promise<RatingDistribution[]> {
-  const modelNames = ['openai', 'deepseek', 'google', 'xai'];
+  // Get all model names from leaderboard
+  const leaderboard = await redis.zrange('leaderboard', 0, -1) as string[];
+  const modelNames = leaderboard;
   const allStats = await Promise.all(modelNames.map((m) => getModelStats(m)));
 
   const ranges = [
