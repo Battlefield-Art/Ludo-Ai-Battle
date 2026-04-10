@@ -8,8 +8,8 @@ import { v4 as uuidv4 } from 'uuid';
 import { z } from 'zod';
 
 const startSchema = z.object({
-  models: z.array(z.string()).length(4).optional(),
-  autoPlay: z.boolean().optional().default(true), // Auto-play by default
+  models: z.array(z.enum(['openai', 'gpt-4', 'deepseek', 'google', 'gemini', 'xai', 'grok'])).length(4).optional(),
+  autoPlay: z.boolean().optional().default(true),
 });
 
 export async function POST(req: NextRequest) {
