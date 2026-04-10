@@ -11,6 +11,8 @@ export interface Piece {
 export interface Player {
   color: PlayerColor;
   model: string;
+  agentName?: string;
+  agentRole?: string;
   piecesState: Piece[];
 }
 

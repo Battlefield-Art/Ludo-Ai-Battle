@@ -1,4 +1,5 @@
 import { GameState, PlayerColor, Piece, Move, AIResponse } from '@/types/game';
+import { AGENT_PERSONALITIES } from './agents/personalities';
 
 const BOARD_SIZE = 52;
 const HOME_START: Record<PlayerColor, number> = {
@@ -13,15 +14,20 @@ export function createInitialState(gameId: string, models: string[]): GameState 
   return {
     gameId,
     status: 'active',
-    players: colors.map((color, i) => ({
-      color,
-      model: models[i] || 'openai',
-      piecesState: Array.from({ length: 4 }, (_, j) => ({
-        pieceId: j,
+    players: colors.map((color, i) => {
+      const personality = AGENT_PERSONALITIES[color];
+      return {
         color,
-        position: -1, // -1 means home
-      })),
-    })),
+        model: models[i] || 'openai',
+        agentName: personality.name,
+        agentRole: personality.role,
+        piecesState: Array.from({ length: 4 }, (_, j) => ({
+          pieceId: j,
+          color,
+          position: -1, // -1 means home
+        })),
+      };
+    }),
     currentPlayerIndex: 0,
     moveHistory: [],
     diceRoll: null,
